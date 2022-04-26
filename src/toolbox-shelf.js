@@ -1,25 +1,25 @@
-import {CanvasRecorder} from './canvas-recorder.js'
-import {Util} from './util.js'
+import { CanvasRecorder } from './canvas-recorder.js'
+import { Util } from './util.js'
 import Gif from 'gif.js'
-import {Pool} from './pool.js'
-import {Undo} from './undo.js'
-import {VectorBrush} from './brush.js'
-import {Layer} from './layer.js'
-import {bumpCanvasToNormalCanvas} from './material-transformations.js'
-import {STATE_PRESSED} from './icon-button.js'
+import { Pool } from './pool.js'
+import { Undo } from './undo.js'
+import { VectorBrush } from './brush.js'
+import { Layer } from './layer.js'
+import { bumpCanvasToNormalCanvas } from './material-transformations.js'
+import { STATE_PRESSED } from './icon-button.js'
 
 import './framework/SubdivisionModifier.js'
 import './framework/SimplifyModifier.js'
 
-function lcm(x,y) {
-  return Math.abs((x * y) / gcd(x,y))
+function lcm(x, y) {
+  return Math.abs((x * y) / gcd(x, y))
 }
 
 function gcd(x, y) {
   x = Math.abs(x);
   y = Math.abs(y);
   var t
-  while(y) {
+  while (y) {
     t = y;
     y = x % y;
     x = t;
@@ -32,30 +32,27 @@ AFRAME.registerComponent('toolbox-shelf', {
   init() {
     Pool.init(this)
     this.el.addEventListener('click', (e) => {
-      if (e.target.hasAttribute('node-fx'))
-      {
+      if (e.target.hasAttribute('node-fx')) {
         this.applyFXAction(e.target.getAttribute('node-fx'))
         return
       }
 
       let action = e.target.getAttribute("click-action") + 'Action';
-      if (action in this)
-      {
+      if (action in this) {
         console.log("Running toolbox action", action)
         this[action]()
       }
-      else
-      {
+      else {
         console.warn("No such toolbox action", action)
       }
     })
   },
   mirrorAnimationAction() {
     let compositor = document.getElementById('canvas-view').components.compositor
-    compositor.activeLayer.frames = compositor.activeLayer.frames.concat(compositor.activeLayer.frames.slice(1,-1).reverse)
-    compositor.el.emit('layerupdated', {layer: compositor.activeLayer})
+    compositor.activeLayer.frames = compositor.activeLayer.frames.concat(compositor.activeLayer.frames.slice(1, -1).reverse)
+    compositor.el.emit('layerupdated', { layer: compositor.activeLayer })
   },
-  mergeFramesAction(source, target, {deleteLayer = true} = {}) {
+  mergeFramesAction(source, target, { deleteLayer = true } = {}) {
     let compositor = document.getElementById('canvas-view').components.compositor
     source = (typeof source === 'undefined') ? compositor.activeLayer : source
     let activeLayerIdx = compositor.layers.indexOf(source)
@@ -67,8 +64,7 @@ AFRAME.registerComponent('toolbox-shelf', {
 
     console.log("Num Frames", numFrames)
 
-    for (let f = target.frames.length; f < numFrames; ++f)
-    {
+    for (let f = target.frames.length; f < numFrames; ++f) {
       let newFrame = document.createElement('canvas')
       newFrame.width = target.width
       newFrame.height = target.height
@@ -81,34 +77,30 @@ AFRAME.registerComponent('toolbox-shelf', {
 
     target.frames = target.frames.concat(newFrames)
 
-    for (let i = 0; i < numFrames; i++)
-    {
+    for (let i = 0; i < numFrames; i++) {
       compositor.jumpToFrame(i)
-      compositor.mergeLayers(source,target)
+      compositor.mergeLayers(source, target)
     }
 
-    compositor.el.emit('layerupdated', {layer: target})
+    compositor.el.emit('layerupdated', { layer: target })
     if (deleteLayer) compositor.deleteLayer(source)
     //compositor.activeLayer(target)
   },
   collapseLayersAction() {
     let compositor = document.getElementById('canvas-view').components.compositor
     let startIdx
-    for (startIdx = 0; startIdx < compositor.layers.length; startIdx++)
-    {
+    for (startIdx = 0; startIdx < compositor.layers.length; startIdx++) {
       if (compositor.layers[startIdx].mode.endsWith("Map")) continue;
       break
     }
     let layersToDelete = []
-    for (let i = startIdx + 1; i < compositor.layers.length; i++)
-    {
+    for (let i = startIdx + 1; i < compositor.layers.length; i++) {
       if (compositor.layers[i].mode.endsWith("Map")) continue;
       this.mergeFramesAction(compositor.layers[i], compositor.layers[startIdx])
       layersToDelete.push(compositor.layers[i])
     }
 
-    for (let layer of layersToDelete)
-    {
+    for (let layer of layersToDelete) {
       compositor.deleteLayer(layer)
     }
   },
@@ -117,34 +109,29 @@ AFRAME.registerComponent('toolbox-shelf', {
     let startIdxs = {}
     let layersToDelete = []
     let startLength = compositor.layers.length
-    for (let i = 0; i < startLength; ++i)
-    {
+    for (let i = 0; i < startLength; ++i) {
       if (compositor.layers[i].mode.endsWith("Map")) continue;
 
       let frames = compositor.layers[i].frames.length
-      if (!(frames in startIdxs))
-      {
+      if (!(frames in startIdxs)) {
         compositor.addLayer(compositor.layers.length)
         startIdxs[frames] = compositor.layers[compositor.layers.length - 1]
       }
 
-      this.mergeFramesAction(compositor.layers[i], startIdxs[frames], {deleteLayer: false})
+      this.mergeFramesAction(compositor.layers[i], startIdxs[frames], { deleteLayer: false })
       layersToDelete.push(compositor.layers[i])
     }
 
-    for (let layer of layersToDelete)
-    {
+    for (let layer of layersToDelete) {
       compositor.deleteLayer(layer)
     }
   },
   async recordHeadsetAction() {
-    if (!this.compositeRecorder)
-    {
-      this.compositeRecorder = new CanvasRecorder({canvas: document.querySelector('.a-canvas'), frameRate: 60})
+    if (!this.compositeRecorder) {
+      this.compositeRecorder = new CanvasRecorder({ canvas: document.querySelector('.a-canvas'), frameRate: 60 })
       this.compositeRecorder.start()
     }
-    else
-    {
+    else {
       await this.compositeRecorder.stop()
       this.el.sceneEl.systems['settings-system'].download(this.compositeRecorder.createURL(), `${this.el.sceneEl.systems['settings-system'].projectName}-${this.el.sceneEl.systems['settings-system'].formatFileDate()}.webm`, "Video Recording")
       delete this.compositeRecorder
@@ -153,14 +140,11 @@ AFRAME.registerComponent('toolbox-shelf', {
   startSkeletonatorAction() {
     let skeletonatorEl = document.querySelector('*[skeletonator]')
 
-    if (!skeletonatorEl)
-    {
-      if (Compositor.nonCanvasMeshes.length > 0)
-      {
+    if (!skeletonatorEl) {
+      if (Compositor.nonCanvasMeshes.length > 0) {
         document.querySelector('#composition-view').setAttribute('skeletonator', "")
       }
-      else
-      {
+      else {
         console.warn("No non-canvas meshes")
       }
       return
@@ -171,7 +155,7 @@ AFRAME.registerComponent('toolbox-shelf', {
   },
 
   toggleLatheAction() {
-    document.querySelectorAll('*[lathe]').forEach(e=>e.setAttribute('lathe', {enabled: !e.getAttribute('lathe').enabled}))
+    document.querySelectorAll('*[lathe]').forEach(e => e.setAttribute('lathe', { enabled: !e.getAttribute('lathe').enabled }))
   },
   redoAction() {
     Undo.redoStack.undo()
@@ -180,7 +164,7 @@ AFRAME.registerComponent('toolbox-shelf', {
     this.el.sceneEl.systems.networking.presentationMode()
   },
   captureRenderAction() {
-    let {width, height} = Compositor.el.getAttribute('geometry')
+    let { width, height } = Compositor.el.getAttribute('geometry')
     Compositor.el.object3D.updateMatrixWorld()
 
     let offset = new THREE.Object3D()
@@ -204,7 +188,7 @@ AFRAME.registerComponent('toolbox-shelf', {
     // var helper = new THREE.CameraHelper( camera );
     // scene.add( helper );
 
-    Util.positionObject3DAtTarget(camera, offset, {scale: {x:1,y:1,z:1}})
+    Util.positionObject3DAtTarget(camera, offset, { scale: { x: 1, y: 1, z: 1 } })
 
     let oldOverlay = Compositor.component.data.drawOverlay
 
@@ -227,7 +211,7 @@ AFRAME.registerComponent('toolbox-shelf', {
     let layer = Compositor.component.activeLayer
     let canvas = Compositor.drawableCanvas
     Undo.pushCanvas(canvas)
-    let processor = new CanvasShaderProcessor({fx})
+    let processor = new CanvasShaderProcessor({ fx })
     processor.setInputCanvas(canvas)
     processor.update()
     let ctx = canvas.getContext('2d')
@@ -239,7 +223,7 @@ AFRAME.registerComponent('toolbox-shelf', {
   },
   downloadAllLayersAction() {
     let i = 0
-    Compositor.component.layers.forEach(l => this.el.sceneEl.systems['settings-system'].download(l.canvas.toDataURL(), {extension: "png", suffix: i++}, l.id))
+    Compositor.component.layers.forEach(l => this.el.sceneEl.systems['settings-system'].download(l.canvas.toDataURL(), { extension: "png", suffix: i++ }, l.id))
   },
   bumpCanvasToNormalCanvasAction() {
     console.warn("Deprecated call to toolbox bumpCanvasToNormalCanvasAction")
@@ -269,8 +253,7 @@ AFRAME.registerComponent('toolbox-shelf', {
 
     let geos = [mesh.geometry]
 
-    for (let i = 1; i < meshes.length; ++i)
-    {
+    for (let i = 1; i < meshes.length; ++i) {
       let other = meshes[i]
       let geo = other.geometry.clone()
       geo.applyMatrix4(other.matrixWorld)
@@ -278,22 +261,21 @@ AFRAME.registerComponent('toolbox-shelf', {
       geos.push(geo)
     }
 
-    for (let geo of geos)
-    {
+    for (let geo of geos) {
 
     }
 
     mesh.geometry = THREE.BufferGeometryUtils.mergeBufferGeometries(geos, false)
 
     let obj = exporter.parse(mesh)
-    this.el.sceneEl.systems['settings-system'].download("data:application/x-binary;base64," + btoa(obj), {extension: 'obj', suffix:''})
+    this.el.sceneEl.systems['settings-system'].download("data:application/x-binary;base64," + btoa(obj), { extension: 'obj', suffix: '' })
   }
 })
 
 AFRAME.registerComponent('toolbox-click-action', {
-  schema: {default: ""},
+  schema: { default: "" },
   events: {
-    click: function(e) {
+    click: function (e) {
       this.el.sceneEl.querySelector('a-entity[toolbox-shelf]').components['toolbox-shelf'][this.data + "Action"]()
     }
   }
@@ -301,9 +283,8 @@ AFRAME.registerComponent('toolbox-click-action', {
 
 AFRAME.registerComponent('advanced-drawing-shelf', {
   events: {
-    click: function(e) {
-      if (e.target.hasAttribute('node-fx'))
-      {
+    click: function (e) {
+      if (e.target.hasAttribute('node-fx')) {
         this.el.sceneEl.querySelector('a-entity[toolbox-shelf]').components['toolbox-shelf'].applyFXAction(e.target.getAttribute('node-fx'))
         return
       }
@@ -313,18 +294,17 @@ AFRAME.registerComponent('advanced-drawing-shelf', {
 
 Util.registerComponentSystem('normal-bump-drawing', {
   schema: {
-    invert: {default: false},
-    keepColor: {default: true},
+    invert: { default: false },
+    keepColor: { default: true },
   },
   bumpCanvasToNormalCanvasAction() {
     let shouldInvert = this.el.querySelector('#invert-normal-draw').getAttribute('toggle-button').toggled;
     let keepColor = this.el.querySelector('#color-normal-draw').getAttribute('toggle-button').toggled;
     Undo.collect(() => {
       Undo.pushCanvas(Compositor.drawableCanvas)
-      bumpCanvasToNormalCanvas(Compositor.drawableCanvas, {normalCanvas: Compositor.drawableCanvas, bumpScale: Math.pow(Compositor.component.activeLayer.opacity, 2.2), invert: shouldInvert, alphaOnly: keepColor})
+      bumpCanvasToNormalCanvas(Compositor.drawableCanvas, { normalCanvas: Compositor.drawableCanvas, bumpScale: Math.pow(Compositor.component.activeLayer.opacity, 2.2), invert: shouldInvert, alphaOnly: keepColor })
       Compositor.drawableCanvas.touch()
-      if (Compositor.component.activeLayer.mode === 'bumpMap')
-      {
+      if (Compositor.component.activeLayer.mode === 'bumpMap') {
         Compositor.component.activeLayer.opacity = 1.0
         Compositor.component.setLayerBlendMode(Compositor.component.activeLayer, 'normalMap')
         Compositor.drawableCanvas.touch()
@@ -332,8 +312,7 @@ Util.registerComponentSystem('normal-bump-drawing', {
     })
   },
   drawNormal() {
-    if (this.onEndDrawingCleanup)
-    {
+    if (this.onEndDrawingCleanup) {
       this.onEndDrawingCleanup()
       return;
     }
@@ -341,13 +320,11 @@ Util.registerComponentSystem('normal-bump-drawing', {
     let normalLayer = Compositor.component.layerforMap('normalMap');
     let originalLayer = Compositor.component.activeLayer;
 
-    if (!this.normalProcessor)
-    {
-      this.normalProcessor = new CanvasShaderProcessor({source: require('./shaders/bump-to-normal-advanced.glsl')})
+    if (!this.normalProcessor) {
+      this.normalProcessor = new CanvasShaderProcessor({ source: require('./shaders/bump-to-normal-advanced.glsl') })
     }
 
-    if (Compositor.el.getAttribute('material').shader === 'flat')
-    {
+    if (Compositor.el.getAttribute('material').shader === 'flat') {
       Compositor.el.setAttribute('material', 'shader', 'matcap')
     }
 
@@ -364,7 +341,7 @@ Util.registerComponentSystem('normal-bump-drawing', {
 
     this.onEndDrawing = () => {
       let shouldInvert = Compositor.component.data.flipNormal ? !this.data.invert
-                                                              : this.data.invert;
+        : this.data.invert;
       let keepColor = this.data.keepColor;
       Undo.stack.pop()
       Undo.pushCanvas(normalLayer.canvas)
@@ -372,7 +349,7 @@ Util.registerComponentSystem('normal-bump-drawing', {
         originalCtx.drawImage(activeLayer.canvas, 0, 0)
       }
       this.normalProcessor.setInputCanvas(activeLayer.canvas)
-      this.normalProcessor.setUniform('u_bumpScale',  'uniform1f', Math.pow(activeLayer.opacity, 2.2))
+      this.normalProcessor.setUniform('u_bumpScale', 'uniform1f', Math.pow(activeLayer.opacity, 2.2))
       this.normalProcessor.setUniform('u_invert', 'uniform1i', shouldInvert)
       this.normalProcessor.setUniform('u_alphaOnly', 'uniform1i', (keepColor && !this.el.sceneEl.systems['paint-system'].brush.textured) ? 1 : 0)
       this.normalProcessor.setCanvasAttribute('u_base', normalLayer.canvas)
@@ -398,7 +375,7 @@ Util.registerComponentSystem('normal-bump-drawing', {
 
 Util.registerComponentSystem('cut-copy-system', {
   events: {
-    shapecreated: function(e) {
+    shapecreated: function (e) {
       if (!this.cutoutStarted) return;
 
       this.cutoutStarted = false
@@ -408,8 +385,7 @@ Util.registerComponentSystem('cut-copy-system', {
   init() {
     this.cutBrush = new VectorBrush('vector')
   },
-  handleShape(shape)
-  {
+  handleShape(shape) {
     Undo.collect(() => {
       this.cutoutStarted = false
       shape.autoClose = true
@@ -424,8 +400,7 @@ Util.registerComponentSystem('cut-copy-system', {
       dstCtx.beginPath()
       dstCtx.fillStyle = "#FFFFFFFF"
       dstCtx.moveTo(shape.curves[0].v1.x, - shape.curves[0].v1.y)
-      for (let line of shape.curves)
-      {
+      for (let line of shape.curves) {
         dstCtx.lineTo(line.v2.x, - line.v2.y)
       }
       dstCtx.fill()
@@ -433,10 +408,9 @@ Util.registerComponentSystem('cut-copy-system', {
 
       let oldOpacity = baseLayer.opacity
       baseLayer.opacity = 1.0
-      baseLayer.draw(dstCtx, Compositor.component.currentFrame, {mode: 'source-in'})
+      baseLayer.draw(dstCtx, Compositor.component.currentFrame, { mode: 'source-in' })
 
-      if (this.cutShape)
-      {
+      if (this.cutShape) {
         let baseCtx = baseLayer.frame(Compositor.component.currentFrame).getContext('2d')
         let oldAlpha = baseCtx.globalAlpha
         let oldOperation = baseCtx.globalCompositeOperation
@@ -445,8 +419,7 @@ Util.registerComponentSystem('cut-copy-system', {
         baseCtx.fillStyle = "#FFFFFFFF"
         baseCtx.beginPath()
         baseCtx.moveTo(shape.curves[0].v1.x, - shape.curves[0].v1.y)
-        for (let line of shape.curves)
-        {
+        for (let line of shape.curves) {
           baseCtx.lineTo(line.v2.x, - line.v2.y)
         }
         baseCtx.fill()
@@ -456,10 +429,9 @@ Util.registerComponentSystem('cut-copy-system', {
 
       baseLayer.opacity = oldOpacity
 
-      Compositor.component.addLayer(Compositor.component.layers.indexOf(Compositor.component.activeLayer), {layer})
+      Compositor.component.addLayer(Compositor.component.layers.indexOf(Compositor.component.activeLayer), { layer })
 
-      if (this.oldBrush)
-      {
+      if (this.oldBrush) {
         this.el.sceneEl.systems['paint-system'].selectBrush(this.oldBrush)
         this.oldBrush = null
       }
@@ -487,15 +459,14 @@ Util.registerComponentSystem('cut-copy-system', {
 
 AFRAME.registerComponent('quick-access-row', {
   schema: {
-    recording: {default: true},
-    autoReset: {default: false},
+    recording: { default: true },
+    autoReset: { default: false },
   },
   init() {
     this.initialAddState = AFRAME.components['icon-button'].Component.prototype.addState;
     let self = this;
-    this.interceptAddState = function(state) {
-      if (state === STATE_PRESSED)
-      {
+    this.interceptAddState = function (state) {
+      if (state === STATE_PRESSED) {
         console.log("Intercepting", this.el)
         self.addButton(this.el)
       }
@@ -503,14 +474,11 @@ AFRAME.registerComponent('quick-access-row', {
     }
   },
   update(oldData) {
-    if (this.data.recording !== oldData.recording)
-    {
-      if (this.data.recording)
-      {
+    if (this.data.recording !== oldData.recording) {
+      if (this.data.recording) {
         AFRAME.components['icon-button'].Component.prototype.addState = this.interceptAddState;
       }
-      else
-      {
+      else {
         AFRAME.components['icon-button'].Component.prototype.addState = this.initialAddState;
       }
     }
@@ -519,8 +487,7 @@ AFRAME.registerComponent('quick-access-row', {
     if (el.parentEl === this.el) return;
     if (el.hasAttribute('button-style') && el.getAttribute('button-style').buttonType === 'flat') return;
     if (!(el.hasAttribute('system-click-action') || el.hasAttribute('click-action'))) return;
-    for (let b of this.el.getChildEntities())
-    {
+    for (let b of this.el.getChildEntities()) {
       if (b.originalEl === el) return;
     }
 
@@ -528,7 +495,7 @@ AFRAME.registerComponent('quick-access-row', {
     this.el.append(newButton)
     newButton.setAttribute('icon-button', el.getAttribute('icon-button'))
     newButton.setAttribute('tooltip', el.getAttribute('tooltip'))
-    newButton.addEventListener('click', function(e) {el.emit('click', e.detail)})
+    newButton.addEventListener('click', function (e) { el.emit('click', e.detail) })
     newButton.originalEl = el
   }
 })
